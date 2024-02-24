@@ -18,46 +18,47 @@ int perror_exit_1() {
 }
 
 int main(int argc, char *argv[]) {
-    char *message_file_path;
-    unsigned long target_message_channel_id;
-    int fd;
-    char buffer[BUFFER_SIZE];
+    char *filePath;
+    unsigned long channelID;
+    int fileDesc;
+    char readBuffer[BUFFER_SIZE];
 
     if (argc == 3) {
-        message_file_path = argv[1];
-        target_message_channel_id = atoi(argv[2]);
-        size_t message_len;
-        /* open file */
-        fd = open(message_file_path, O_RDWR);
-        if (fd < 0) {
+        filePath = argv[1];
+        channelID = strtoul(argv[2], NULL, 10); // Convert string to unsigned long
+        size_t bytesRead;
+
+        // Open the specified file
+        fileDesc = open(filePath, O_RDWR);
+        if (fileDesc < 0) {
             perror_exit_1();
         }
 
-        /* set channel id*/
-        if (ioctl(fd, MSG_SLOT_CHANNEL, target_message_channel_id) < 0){
+        // Set the channel ID for message retrieval
+        if (ioctl(fileDesc, MSG_SLOT_CHANNEL, channelID) < 0){
             perror_exit_1();
         }
 
-        /* read message from channel to user buffer */
-        message_len = read(fd, buffer, BUFFER_SIZE);
-        if (message_len < 0){
+        // Read the message from the channel into the buffer
+        bytesRead = read(fileDesc, readBuffer, BUFFER_SIZE);
+        if (bytesRead < 0){
             perror_exit_1();
         }
 
-        if (close(fd) < 0){
+        // Ensure the file is properly closed
+        if (close(fileDesc) < 0){
             perror_exit_1();
         }
 
-
-        /* write message from user buffer to stdout */
-        if (write(STDOUT_FILENO, buffer, message_len) < 0){
+        // Output the retrieved message to stdout
+        if (write(STDOUT_FILENO, readBuffer, bytesRead) < 0){
             perror_exit_1();
         }
 
-        exit(0);
+        exit(0); // Exit successfully
     }
-
-    else{
+    else {
+        // Handle incorrect usage
         errno = EINVAL;
         perror_exit_1();
     }
