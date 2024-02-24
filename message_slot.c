@@ -47,56 +47,58 @@ void free_devices_list(void);
 static void __exit simple_cleanup(void);
 
 
+/* Function to find the last channel in the chain */
 struct device_channels* last_channel(struct device_channels* channel) {
-    struct device_channels* head;
-    head = channel;
-    while (head != NULL && head->next != NULL){
-        head = head->next;
+    struct device_channels* traverse = channel;
+    // Iterate until the last channel is reached
+    while (traverse != NULL && traverse->next != NULL){
+        traverse = traverse->next;
     }
-    return head;
+    return traverse; // Return the last or terminal channel
 }
 
-/* get channel by channel_id */
+/* Function to locate a channel by its unique channel_id */
 struct device_channels* get_channel(struct device_channels* head, unsigned long channel_id){
-    struct device_channels* channel_node;
-    channel_node = head;
-    while (channel_node != NULL){
-        if (channel_node->channel == channel_id){
-            return channel_node;
+    struct device_channels* search = head;
+    // Loop through the channels to find a match by ID
+    while (search != NULL){
+        if (search->channel == channel_id){
+            return search; // Channel found
         }
-        channel_node = channel_node->next;
+        search = search->next;
     }
-    return NULL;
+    return NULL; // If no matching channel, return NULL
 }
+
 
 
 static int device_open(struct inode* inode, struct file* file) {
-    int minor;
-    struct device_channels* device_channel;
-    struct file_descriptor* file_des;
+    int minorNumber;
+    struct device_channels* newDeviceChannel;
+    struct file_descriptor* newFileDescriptor;
 
-    /* update file -> private data*/
-    minor = iminor(inode);
+    /* Initialize file's private data */
+    minorNumber = iminor(inode);
     if (file->private_data == NULL) {
-        file_des = (struct file_descriptor *) kmalloc(sizeof(struct file_descriptor), GFP_KERNEL);
-        if (file_des == NULL) {
-            return -ENOMEM;
+        newFileDescriptor = (struct file_descriptor *) kmalloc(sizeof(struct file_descriptor), GFP_KERNEL);
+        if (newFileDescriptor == NULL) {
+            return -ENOMEM; // Memory allocation failed
         }
-        file_des->minor = minor;
-        file->private_data = file_des;
+        newFileDescriptor->minor = minorNumber;
+        file->private_data = newFileDescriptor;
     }
 
-    /* crete dummy channel */
-    if (device_files[minor] == NULL) {
-        device_channel = (struct device_channels*) kmalloc(sizeof(struct device_channels), GFP_KERNEL);
-        if (device_channel == NULL) {
-            return -ENOMEM;
+    /* Create a placeholder channel if none exists */
+    if (device_files[minorNumber] == NULL) {
+        newDeviceChannel = (struct device_channels*) kmalloc(sizeof(struct device_channels), GFP_KERNEL);
+        if (newDeviceChannel == NULL) {
+            return -ENOMEM; // Memory allocation failed
         }
-        device_channel->channel = 0;
-        device_channel->message_length = 0;
-        device_files[minor] = device_channel;
+        newDeviceChannel->channel = 0; // Initialize dummy channel
+        newDeviceChannel->message_length = 0; // Set initial message length to 0
+        device_files[minorNumber] = newDeviceChannel; // Assign to device files
     }
-    return 0;
+    return 0; // Successful operation
 }
 
 
@@ -107,39 +109,43 @@ static int device_release(struct inode* inode, struct file* file) {
 
 
 static long device_ioctl(struct file* file, unsigned int ioctl_command_id, unsigned long ioctl_param){
-    int minor;
-    struct device_channels* last_device_channel;
-    struct device_channels* new_device_channel;
-    struct device_channels* exist_channel;
+    int deviceMinor;
+    struct device_channels* tailChannel;
+    struct device_channels* newChannel;
+    struct device_channels* existingChannel;
 
+    // Validate the command ID and parameter
     if (ioctl_command_id != MSG_SLOT_CHANNEL || ioctl_param == 0) {
-        return -EINVAL;
+        return -EINVAL; // Invalid argument
     }
 
-    minor = ((struct file_descriptor*)(file->private_data))->minor;
+    deviceMinor = ((struct file_descriptor*)(file->private_data))->minor;
 
-    /* should never be NULL */
-    if (device_files[minor] == NULL){
-        return -1;
+    // Device files should already be initialized
+    if (device_files[deviceMinor] == NULL){
+        return -1; // Error condition, should not happen
     }
 
-    exist_channel = get_channel(device_files[minor], ioctl_param);
+    // Attempt to find an existing channel with the provided ID
+    existingChannel = get_channel(device_files[deviceMinor], ioctl_param);
 
-    if (exist_channel == NULL){
-        last_device_channel = last_channel(device_files[minor]);
-        new_device_channel = (struct device_channels*) kmalloc(sizeof(struct device_channels), GFP_KERNEL);
-        if (new_device_channel == NULL){
-            return -ENOMEM;
+    // If the channel does not exist, create a new one
+    if (existingChannel == NULL){
+        tailChannel = last_channel(device_files[deviceMinor]);
+        newChannel = (struct device_channels*) kmalloc(sizeof(struct device_channels), GFP_KERNEL);
+        if (newChannel == NULL){
+            return -ENOMEM; // Failed to allocate memory
         }
-        new_device_channel->channel = ioctl_param;
-        new_device_channel->message_length = 0;
-        last_device_channel->next = new_device_channel;
-        exist_channel = new_device_channel;
+        newChannel->channel = ioctl_param; // Set channel ID
+        newChannel->message_length = 0; // Initialize message length
+        tailChannel->next = newChannel; // Link the new channel
+        existingChannel = newChannel; // Update pointer to the newly created channel
     }
 
-    ((struct file_descriptor*)(file->private_data))->channel = exist_channel;
+    // Update the file descriptor with the (newly) selected channel
+    ((struct file_descriptor*)(file->private_data))->channel = existingChannel;
 
-    return 0;
+    return 0; // Success
 }
 
 static ssize_t device_read(struct file* file, char __user* buffer, size_t length, loff_t* offset){
@@ -212,7 +218,6 @@ return i;
 
 
 
-/* rec06 */
 struct file_operations Fops = {
         .owner	  = THIS_MODULE,
         .read           = device_read,
