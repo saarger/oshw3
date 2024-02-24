@@ -16,40 +16,43 @@ int perror_exit_1(){
 }
 
 int main(int argc, char *argv[]) {
-    char *message_file_path;
-    unsigned int target_message_channel_id;
-    char *message_to_pass;
-    int fd;
+    char *filePath;
+    unsigned int channelId;
+    char *message;
+    int fileDescriptor;
 
     if (argc == 4) {
-        message_file_path = argv[1];
-        target_message_channel_id = atoi(argv[2]);
-        message_to_pass = argv[3];
-        /* open file */
-        fd = open(message_file_path, O_RDWR);
-        if (fd == -1) {
-            perror_exit_1();
+        filePath = argv[1];
+        channelId = atoi(argv[2]);
+        message = argv[3];
+
+        // Attempt to open the specified file
+        fileDescriptor = open(filePath, O_RDWR);
+        if (fileDescriptor == -1) {
+            perror_exit_1(); // Custom error handling function
         }
 
-        /* update channel ID */
-        if (ioctl(fd, MSG_SLOT_CHANNEL, target_message_channel_id) == -1){
-            perror_exit_1();
+        // Set the message slot channel
+        if (ioctl(fileDescriptor, MSG_SLOT_CHANNEL, channelId) == -1){
+            perror_exit_1(); // Error handling
         }
 
-        /* write message to channel */
-        if (write(fd, message_to_pass, strlen(message_to_pass)) < 0){
-            perror_exit_1();
+        // Write the message to the specified channel
+        if (write(fileDescriptor, message, strlen(message)) < 0){
+            perror_exit_1(); // Error handling
         }
-        if (close(fd) < 0){
-            perror_exit_1();
+
+        // Close the file descriptor
+        if (close(fileDescriptor) < 0){
+            perror_exit_1(); // Error handling
         }
-        exit(0);
+
+        exit(0); // Successful execution
     }
-
-    else{
+    else {
+        // Set error for invalid arguments
         errno = EINVAL;
-        perror_exit_1();
+        perror_exit_1(); // Handle error for invalid usage
     }
-    return 0;
-
+    return 0; // End of main function
 }
